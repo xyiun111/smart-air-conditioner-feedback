@@ -1,70 +1,70 @@
 import streamlit as st
-import pandas as pd
+import math
 
-# 確保 session_state 初始化
+# 初始化 session_state
 if 'points' not in st.session_state:
-    st.session_state.points = 0  # 初始積分為 0
+    st.session_state.points = 0
+if 'last_temp' not in st.session_state:
+    st.session_state.last_temp = None
+if 'last_people' not in st.session_state:
+    st.session_state.last_people = None
+if 'selected_feedback' not in st.session_state:
+    st.session_state.selected_feedback = "剛好"
 
-# 初始化 `feedback` 為預設值"剛好"
-if 'feedback' not in st.session_state:
-    st.session_state.feedback = "剛好"  # 預設選擇"剛好"
-
-# 顯示應用標題
+# 標題
 st.title("互動式節能空調系統模擬")
 
-# 讀取 Colab 產生的虛擬感測資料
-df = pd.read_csv("sensor_data.csv")
+# 手動輸入溫度與人數
+temp = st.number_input("請輸入目前教室溫度（°C）：", min_value=10.0, max_value=40.0, value=25.0, step=0.1)
+people = st.number_input("請輸入目前教室內人數：", min_value=0, max_value=100, value=30, step=1)
 
-# 使用者選擇要查看哪一筆模擬資料，並重置積分與回饋
-index = st.slider("選擇資料編號", 0, len(df)-1, 0)
+# 溫度或人數變動則重置分數與回饋
+if temp != st.session_state.last_temp or people != st.session_state.last_people:
+    st.session_state.points = 0
+    st.session_state.selected_feedback = "剛好"
+    st.write("📌 已重設積分與回饋（因為更改了溫度或人數）")
 
-# 重置積分與回饋
-if index != st.session_state.get('last_index', -1):  # 檢查是否為新資料
-    st.session_state.feedback = "剛好"  # 回饋清空為預設值
-    st.session_state.points = 0  # 積分歸零
+st.session_state.last_temp = temp
+st.session_state.last_people = people
 
-# 儲存當前索引，避免重置多次
-st.session_state.last_index = index
-
-# 取得當前選擇資料
-temp = df.loc[index, 'temperature']
-people = df.loc[index, 'people']
-
-# 顯示當前教室溫度與人數
+# 顯示目前狀態
 st.write(f"目前教室溫度：🌡️ {temp:.1f}°C")
 st.write(f"目前人數：👥 {int(people)}人")
 
-# 學生回饋
-feedback = st.radio("你覺得現在的溫度如何？", ["太冷", "剛好", "太熱"],
-                    index=["太冷", "剛好", "太熱"].index(st.session_state.feedback), key="feedback")
+# 選擇回饋（但不會立即送出）
+selected = st.radio("你覺得現在的溫度如何？", ["太冷", "剛好", "太熱"],
+                    index=["太冷", "剛好", "太熱"].index(st.session_state.selected_feedback))
 
-# 計算建議的溫度和積分
-if feedback == "太熱":
-    recommended = temp - 1
-    points_awarded = 10  # 給予更多積分，鼓勵節能行為
-elif feedback == "太冷":
-    recommended = temp + 1
-    points_awarded = 5  # 給予較少的積分
-else:
-    recommended = temp
-    points_awarded = 0  # 無需積分獎勳
+# 根據人數計算溫度調整度數 (每15人調整1.5度)
+adjustment_per_15 = 0.8
+adjustment_factor = math.floor(people / 15) * adjustment_per_15
 
-# 更新並顯示積分
-st.session_state.points += points_awarded
+# 按下按鈕才送出回饋（不論是否與上次相同）
+if st.button("送出回饋"):
+    st.session_state.selected_feedback = selected
 
-# 顯示系統建議
-st.success(f"系統建議設定溫度為：{recommended:.1f}°C")
+    if selected == "太冷":
+        st.session_state.points += 5
+        recommended = temp + adjustment_factor
+        st.balloons()
+        st.write("❄️ 感謝回饋，已加 5 分")
+    elif selected == "太熱":
+        st.session_state.points -= 2
+        recommended = temp - adjustment_factor
+        st.write("🔥 感謝回饋，已扣 2 分")
+    else:  # 剛好
+        recommended = temp
+        st.write("😊 感謝回饋，目前為剛好，未變動分數")
 
-# 顯示學生累積的綠點積分
+    # 限制建議溫度範圍
+    if recommended < 16:
+        recommended = 16
+        st.warning("再低北極熊會死翹翹 🐻‍❄️")
+    elif recommended > 28:
+        recommended = 28
+        st.warning("你還去曬太陽好了!")
+
+    st.success(f"系統建議設定溫度為：{recommended:.1f}°C")
+
+# 顯示目前分數
 st.write(f"你的綠點積分：🌱 {st.session_state.points} 點")
-
-# 鼓勵學生繼續參與節能
-if points_awarded > 0:
-    st.balloons()  # 顯示慶祝氣球，表示有積分獲得
-    st.write("太棒了！你為節能行為做出了貢獻！")
-    
-    
-    
-    
-    
-
